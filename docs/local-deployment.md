@@ -22,9 +22,10 @@ nvidia-smi
 
 如果提示找不到命令，先不要继续安装项目，需先让 Windows NVIDIA 驱动和 WSL GPU 支持正常工作。
 
-再检查 Hugging Face 是否可访问：
+再检查 Hugging Face 是否可访问。全新 Ubuntu 如果还没有 `curl`，先安装它：
 
 ```bash
+command -v curl >/dev/null || { sudo apt update && sudo apt install -y curl; }
 curl -4 -I --connect-timeout 10 https://huggingface.co
 ```
 
