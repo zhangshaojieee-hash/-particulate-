@@ -6,11 +6,29 @@
 
 ## 开始前
 
-需要：WSL2 Ubuntu 22.04、NVIDIA GPU、至少 4 GB 显存、已准备好的视觉中转站API Key。4 GB 显存电脑按本文的 `4096` 配置运行；8 GB 以上通常可以去掉显存限制变量。
+本文所有命令都在 **WSL Ubuntu 终端** 中执行，不是在 Windows PowerShell 中执行。
+
+需要：WSL2 Ubuntu 22.04、NVIDIA GPU、至少 4 GB 显存、已准备好的视觉中转站 API Key，以及至少数 GB 可用磁盘空间。4 GB 显存电脑按本文的 `4096` 配置运行；8 GB 以上通常可以去掉显存限制变量。
+
+如果还没有 WSL2 Ubuntu，请先在 Windows PowerShell（管理员）中执行 `wsl --install -d Ubuntu-22.04`，重启后首次打开 Ubuntu 完成 Linux 用户创建。NVIDIA 驱动应安装在 Windows 中；WSL 内不要安装 Linux NVIDIA 驱动或系统级 CUDA Toolkit。
 
 本文只发布适配器和补丁，不包含模型权重。首次启动会自动下载模型，可能需要数 GB 磁盘空间。
 
-如果 WSL 已经能访问 Hugging Face，直接继续。如果访问超时，先配置 Clash 代理：
+先检查 GPU 是否可见：
+
+```bash
+nvidia-smi
+```
+
+如果提示找不到命令，先不要继续安装项目，需先让 Windows NVIDIA 驱动和 WSL GPU 支持正常工作。
+
+再检查 Hugging Face 是否可访问：
+
+```bash
+curl -4 -I --connect-timeout 10 https://huggingface.co
+```
+
+如果返回 `HTTP/2 200` 或类似成功响应，直接继续。如果解析超时、连接超时或失败，先配置 Clash 代理：
 
 ```bash
 WIN_HOST=$(ip route | awk '/default/ {print $3; exit}')
@@ -20,7 +38,13 @@ export https_proxy="$HTTPS_PROXY"
 export http_proxy="$HTTP_PROXY"
 ```
 
-其中 `7897` 换成 Clash Verge 的实际 Mixed Port，并确认已打开 `Allow LAN`。
+其中 `7897` 换成 Clash Verge 的实际 Mixed Port，并确认已打开 `Allow LAN`。配置后重新测试：
+
+```bash
+curl -4 -I --connect-timeout 10 https://huggingface.co
+```
+
+代理测试仍失败时先不要继续 clone；确认 Clash 正在运行、端口正确，并把这条命令和输出发给 AI。
 
 ## 1. 安装基础工具并获取代码
 
@@ -28,7 +52,7 @@ export http_proxy="$HTTP_PROXY"
 
 ```bash
 sudo apt update
-sudo apt install -y blender git git-lfs curl
+sudo apt install -y blender git git-lfs curl wget
 git lfs install
 
 mkdir -p ~/projects/ai4d
@@ -36,13 +60,24 @@ cd ~/projects/ai4d
 git clone https://huggingface.co/spaces/rayli/instruct-particulate
 git clone https://github.com/zhangshaojieee-hash/-particulate-.git particulate-adapter-release
 
+cd instruct-particulate
+# 补丁按这个官方版本生成，固定版本可避免上游更新造成不兼容。
+git checkout --detach 290fe6cbd47b1e8db5386160d61b2272ca2773a2
+git lfs pull
+test -z "$(git status --porcelain)" || { echo "官方目录不是干净状态，请先处理本地修改"; exit 1; }
+
+cd ..
 cp particulate-adapter-release/instruct_particulate/utils/vision_relay.py \
   instruct-particulate/instruct_particulate/utils/vision_relay.py
 cd instruct-particulate
+git apply --check ../particulate-adapter-release/official-patch/app.py.relay.patch
 git apply ../particulate-adapter-release/official-patch/app.py.relay.patch
+
+grep -n "call_auto_kinematics_model_via_relay" app.py
+ls instruct_particulate/utils/vision_relay.py
 ```
 
-如果官方目录已经存在，只需 clone 适配器仓库，再执行复制和 `git apply` 两步。补丁重复应用会报错，遇到这种情况先检查：
+最后两条命令应能找到 relay 代码。若 `git apply --check` 失败，先不要继续启动，通常是官方 Space 版本不同或目录有本地修改；把完整错误日志发给 AI。如果官方目录已经存在，先确认它是上面固定的官方提交，再 clone 适配器仓库并执行复制、检查和 `git apply` 步骤。若提示补丁已应用，先检查：
 
 ```bash
 grep -n "call_auto_kinematics_model_via_relay" app.py
@@ -56,15 +91,23 @@ ls instruct_particulate/utils/vision_relay.py
 ```bash
 source "$HOME/miniforge3/etc/profile.d/conda.sh"
 conda activate particulate-env
+python --version
 ```
 
-没有 Miniforge 时先安装并创建环境：
+应显示 Python 3.10.x。若 `conda` 或环境路径不存在，按下面的 Miniforge 安装步骤执行。
+
+如果没有 Miniforge，先安装它：
 
 ```bash
 cd ~
 wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh -O Miniforge3.sh
 bash Miniforge3.sh -b -p "$HOME/miniforge3"
 rm Miniforge3.sh
+```
+
+然后创建并激活项目环境。若环境已经存在，`conda create` 会提示；此时跳过创建，直接执行激活命令：
+
+```bash
 source "$HOME/miniforge3/etc/profile.d/conda.sh"
 conda create -n particulate-env python=3.10 -y
 conda activate particulate-env
@@ -74,7 +117,7 @@ conda activate particulate-env
 
 ```bash
 sudo apt update
-sudo apt install -y blender git git-lfs curl
+sudo apt install -y blender git git-lfs curl wget
 cd ~/projects/ai4d/instruct-particulate
 git lfs install
 python -m pip install -r requirements.txt
@@ -99,7 +142,7 @@ cd ~/projects/ai4d/instruct-particulate
 
 export AI4D_VISION_BASE_URL="https://你的中转站域名/v1"
 export AI4D_VISION_MODEL="中转站实际提供的视觉模型名"
-read -s AI4D_VISION_API_KEY
+read -r -s -p "API Key: " AI4D_VISION_API_KEY; echo
 export AI4D_VISION_API_KEY
 
 export BLENDER_BIN=/usr/bin/blender
@@ -107,8 +150,7 @@ export GRADIO_SERVER_PORT=7860
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export INSTRUCT_PARTICULATE_QUERY_BATCH_SIZE=4096
 
-CUDA_VISIBLE_DEVICES=0 \
-  "$HOME/miniforge3/envs/particulate-env/bin/python" app.py
+CUDA_VISIBLE_DEVICES=0 python app.py
 ```
 
 中转站必须支持：

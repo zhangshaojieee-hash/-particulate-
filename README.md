@@ -21,14 +21,18 @@
 
 ### 1. 获取官方 Space
 
+补丁对应的官方版本是提交 `290fe6cbd47b1e8db5386160d61b2272ca2773a2`。请固定到这个版本，避免上游后续更新导致补丁无法应用。
+
 ```bash
 mkdir -p ~/projects/ai4d
 cd ~/projects/ai4d
 git clone https://huggingface.co/spaces/rayli/instruct-particulate
 cd instruct-particulate
+git checkout --detach 290fe6cbd47b1e8db5386160d61b2272ca2773a2
+git lfs pull
 ```
 
-如果组员已经有官方 Space，只需确认目录是干净且版本与项目要求一致。
+如果组员已经有官方 Space，先确认目录干净，并切换到上面的提交。详细的 GPU、网络、环境和启动步骤见 [`docs/local-deployment.md`](docs/local-deployment.md)。
 
 ### 2. 获取本同步仓库
 
