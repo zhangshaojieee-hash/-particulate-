@@ -6,20 +6,36 @@
 
 ## 开始前
 
-需要：WSL2 Ubuntu 22.04、NVIDIA GPU、至少 4 GB 显存、已准备好的视觉中转站 Key。4 GB 显存电脑按本文的 `4096` 配置运行；8 GB 以上通常可以去掉显存限制变量。
+需要：WSL2 Ubuntu 22.04、NVIDIA GPU、至少 4 GB 显存、已准备好的视觉中转站API Key。4 GB 显存电脑按本文的 `4096` 配置运行；8 GB 以上通常可以去掉显存限制变量。
 
 本文只发布适配器和补丁，不包含模型权重。首次启动会自动下载模型，可能需要数 GB 磁盘空间。
 
-## 1. 获取代码
-
-在 Ubuntu 中执行：
+如果 WSL 已经能访问 Hugging Face，直接继续。如果访问超时，先配置 Clash 代理：
 
 ```bash
+WIN_HOST=$(ip route | awk '/default/ {print $3; exit}')
+export HTTPS_PROXY="http://${WIN_HOST}:7897"
+export HTTP_PROXY="http://${WIN_HOST}:7897"
+export https_proxy="$HTTPS_PROXY"
+export http_proxy="$HTTP_PROXY"
+```
+
+其中 `7897` 换成 Clash Verge 的实际 Mixed Port，并确认已打开 `Allow LAN`。
+
+## 1. 安装基础工具并获取代码
+
+先安装 Git LFS 和 Blender，再 clone 官方 Space。顺序不要调换：
+
+```bash
+sudo apt update
+sudo apt install -y blender git git-lfs curl
+git lfs install
+
 mkdir -p ~/projects/ai4d
 cd ~/projects/ai4d
 git clone https://huggingface.co/spaces/rayli/instruct-particulate
-
 git clone https://github.com/zhangshaojieee-hash/-particulate-.git particulate-adapter-release
+
 cp particulate-adapter-release/instruct_particulate/utils/vision_relay.py \
   instruct-particulate/instruct_particulate/utils/vision_relay.py
 cd instruct-particulate
@@ -147,4 +163,3 @@ export BLENDER_BIN=/usr/bin/blender
 ```
 
 其他错误请把去除 API Key 后的完整日志发给 AI 分析。自动识别结果仍需人工确认，不能直接用于设备电流、PWM、磁场或 G-code 执行。
-
