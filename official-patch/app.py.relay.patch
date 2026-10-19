@@ -1,0 +1,74 @@
+diff --git a/app.py b/app.py
+index 924a33c..451dd34 100644
+--- a/app.py
++++ b/app.py
+@@ -130,6 +130,22 @@ INFERENCE_NO_POINT_PROMPT = True
+ INFERENCE_EXPORT_URDF_DURING_WRITE = False
+ HIGH_FACE_COUNT_WARNING_THRESHOLD = 100_000
+ 
++
++def _positive_int_env(name: str, default: int) -> int:
++    value = os.environ.get(name, "").strip()
++    if not value:
++        return default
++    try:
++        parsed = int(value)
++    except ValueError:
++        print(f"Ignoring invalid {name}={value!r}; using {default}")
++        return default
++    if parsed <= 0:
++        print(f"Ignoring non-positive {name}={parsed}; using {default}")
++        return default
++    return parsed
++
++
+ DEFAULT_KINEMATIC_TREE = {
+     "links": [
+         {"id": 0, "name": "base"},
+@@ -4025,12 +4041,24 @@ class InstructParticulateApp:
+                 "Identifying and localizing kinematic parts",
+             )
+ 
+-            raw_response = call_auto_kinematics_model(
+-                model_id=AUTO_KINEMATICS_MODEL_ID,
+-                system_prompt_path=REPO_ROOT / "kinematic-inference-system-prompt.md",
+-                rendered_views=rendered_views,
+-                reasoning_effort=AUTO_KINEMATICS_REASONING_EFFORT,
+-            )
++            if os.environ.get("AI4D_VISION_BASE_URL") or os.environ.get("OPENAI_BASE_URL"):
++                from instruct_particulate.utils.vision_relay import (
++                    call_auto_kinematics_model_via_relay,
++                )
++
++                raw_response = call_auto_kinematics_model_via_relay(
++                    model_id=AUTO_KINEMATICS_MODEL_ID,
++                    system_prompt_path=REPO_ROOT / "kinematic-inference-system-prompt.md",
++                    rendered_views=rendered_views,
++                    reasoning_effort=AUTO_KINEMATICS_REASONING_EFFORT,
++                )
++            else:
++                raw_response = call_auto_kinematics_model(
++                    model_id=AUTO_KINEMATICS_MODEL_ID,
++                    system_prompt_path=REPO_ROOT / "kinematic-inference-system-prompt.md",
++                    rendered_views=rendered_views,
++                    reasoning_effort=AUTO_KINEMATICS_REASONING_EFFORT,
++                )
+             parsed_response = parse_auto_kinematics_response(raw_response)
+             yield (
+                 current_tree,
+@@ -5075,9 +5103,13 @@ def create_gradio_app(app: InstructParticulateApp) -> gr.Blocks:
+                     container=False,
+                     padding=False,
+                 )
+-                num_query_points = gr.State(51200)
++                num_query_points = gr.State(
++                    _positive_int_env("INSTRUCT_PARTICULATE_NUM_QUERY_POINTS", 51200)
++                )
+                 per_face_queries = gr.State(3)
+-                query_batch_size = gr.State(51200)
++                query_batch_size = gr.State(
++                    _positive_int_env("INSTRUCT_PARTICULATE_QUERY_BATCH_SIZE", 51200)
++                )
+                 animation_frames = gr.State(50)
+                 connectivity = gr.State(True)
+                 confidence_temperature = gr.State(1.0)
